@@ -30,4 +30,5 @@ alerting_client = AlertingClient(client)
 
 # Create Slack destination and monitor
 destination_id = create_slack_destination(alerting_client, "slack_destination", webhook_url)
-monitor_id = create_monitor(alerting_client, "error_monitor", indices, 1, destination_id)
+error_monitor_id = create_monitor(alerting_client, "error_monitor", indices, destination_id, "error")
+fatal_monitor_id = create_monitor(alerting_client, "fatal_monitor", indices, destination_id, "fatal")

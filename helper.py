@@ -57,9 +57,10 @@ def search_monitor(alerting_client, name):
         return ''
 
 
-def create_monitor(alerting_client, name, indices, error_count, destination_id):
+def create_monitor(alerting_client, name, indices, destination_id, level="error", error_count=1, interval=5):
     # Check if a monitor with the same name already exists
     monitor_id = search_monitor(alerting_client, name)
+    severity = "3" if level == "error" else "1"
 
     # Define the search query to be used in the monitor
     search_query = {
@@ -73,13 +74,13 @@ def create_monitor(alerting_client, name, indices, error_count, destination_id):
                         {
                             "range": {
                                 "@timestamp": {
-                                    "gte": "{{period_end}}||-5m",
+                                    "gte": "{{period_end}}||-" + f"{interval}m",
                                     "lte": "{{period_end}}",
                                     "format": "epoch_millis"
                                 }
                             }
                         },
-                        {"match_phrase": {"log": "\"level=error\""}}
+                        {"match_phrase": {"log": f"\"level={level}\""}}
                     ]
                 }
             }
@@ -91,12 +92,12 @@ def create_monitor(alerting_client, name, indices, error_count, destination_id):
         "name": name,
         "type": "monitor",
         "monitor_type": "query_level_monitor",
-        "schedule": {"period": {"interval": 5, "unit": "MINUTES"}},
+        "schedule": {"period": {"interval": interval, "unit": "MINUTES"}},
         "inputs": [{"search": search_query}],
         "triggers": [
             {
-                "name": "error_trigger",
-                "severity": "3",
+                "name": f"{level}_trigger",
+                "severity": severity,
                 "condition": {
                     "script": {
                         "source": f"ctx.results[0].hits.total.value > {error_count}",
@@ -107,7 +108,7 @@ def create_monitor(alerting_client, name, indices, error_count, destination_id):
                     {
                         "name": "slack_destination",
                         "destination_id": destination_id,
-                        "subject_template": {"lang": "mustache", "source": "error > 1 in 5 minutes"},
+                        "subject_template": {"lang": "mustache", "source": f"{level} > 1 in {interval} minutes"},
                         "message_template": {
                             "lang": "mustache",
                             "source": "Monitor {{ctx.monitor.name}} just entered alert status. Please investigate the issue.\n  - Trigger: {{ctx.trigger.name}}\n  - Severity: {{ctx.trigger.severity}}\n  - Period start: {{ctx.periodStart}}\n  - Period end: {{ctx.periodEnd}}"
